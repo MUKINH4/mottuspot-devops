@@ -1,0 +1,1 @@
+update moto set status = 'ATIVO' where id = 1;

@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="pt-br" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+    <meta charset="UTF-8">
+    <title>Motos do Pátio</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            plugins: [daisyui],
+            daisyui: { themes: ["light", "dark"] },
+        }
+    </script>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@2.57.0/dist/full.css" rel="stylesheet">
+
+</head>
+<body class="bg-gray-100 min-h-screen">
+<div th:replace="~{partials/header :: header(${patio})}"></div>
+
+<div class="max-w-5xl mx-auto">
+
+    <!-- Título -->
+    <h1 class="text-3xl font-bold text-green-700 mb-6">
+        Motos do [[${patio.nome}]]
+    </h1>
+
+    <!-- Lista de Motos -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div th:if="${patio != null and patio.motos != null and !patio.motos.empty}" th:each="moto : ${patio.motos}"
+             class="bg-white shadow-lg rounded-xl p-4 hover:scale-105 transition transform cursor-pointer">
+            <div class="flex justify-between items-center mb-2">
+                <h2 class="text-xl font-semibold text-gray-800" th:text="${moto.placa}">ABC-1234</h2>
+                <span class="p-2 px-3 bg-gray-100 rounded-xl transition hover:bg-gray-300">Localizar</span>
+            </div>
+
+            <!-- Descrição -->
+            <p class="text-gray-600 mb-1">
+                <span class="font-semibold">Descrição:</span>
+                <span th:text="${moto.descricao}">Modelo Honda CG</span>
+            </p>
+
+            <!-- Status -->
+            <p class="text-gray-600 mb-1">
+                <span class="font-semibold">Status:</span>
+                <span th:text="${moto.status}">DISPONÍVEL</span>
+            </p>
+
+            <!-- Data de Adição -->
+            <p class="text-gray-600 mb-1">
+                <span class="font-semibold">Data de Adição:</span>
+                <span th:text="${#temporals.format(moto.dataAdicao, 'dd/MM/yyyy HH:mm')}"></span>
+            </p>
+
+            <!-- Dispositivo -->
+            <p class="text-gray-600">
+                <span class="font-semibold">Dispositivo:</span>
+                <span th:text="${moto.dispositivo != null ? moto.dispositivo.id : '—'}"></span>
+            </p>
+
+            <!-- Botões condicionais para ADMIN apenas -->
+            <div sec:authorize="hasRole('ADMIN')" class="flex gap-2 mt-3">
+                <a th:href="@{/motos/edit/{id}(id=${moto.id})}" class="btn flex-1 btn-warning">Editar</a>
+                <a th:href="@{/motos/delete/{id}(id=${moto.id})}" class="btn flex-1 btn-danger"
+                   onclick="return confirm('Tem certeza que deseja excluir esta moto?')">Excluir</a>
+            </div>
+        </div>
+
+        <div th:if="${patio == null or patio.motos == null or patio.motos.empty}">Nenhum veículo encontrado nesse pátio</div>
+    </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

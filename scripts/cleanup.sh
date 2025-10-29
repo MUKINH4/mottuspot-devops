@@ -1,0 +1,1 @@
+az group delete --name rg-mottu-spot --yes --no-wait
