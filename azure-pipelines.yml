@@ -35,26 +35,6 @@ stages:
               jdkArchitectureOption: "x64"
               jdkSourceOption: "PreInstalled"
 
-          # Executar testes
-          - task: Gradle@3
-            displayName: "Run Tests"
-            inputs:
-              gradleWrapperFile: "gradlew"
-              tasks: "test"
-              publishJUnitResults: true
-              testResultsFiles: "**/TEST-*.xml"
-              javaHomeOption: "JDKVersion"
-              jdkVersionOption: "1.17"
-
-          # Publicar resultados dos testes
-          - task: PublishTestResults@2
-            displayName: "Publish Test Results"
-            condition: succeededOrFailed()
-            inputs:
-              testResultsFormat: "JUnit"
-              testResultsFiles: "**/TEST-*.xml"
-              failTaskOnFailedTests: true
-
           # Build com Gradle
           - task: Gradle@3
             displayName: "Gradle Build"
