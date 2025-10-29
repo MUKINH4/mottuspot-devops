@@ -2,7 +2,6 @@ trigger:
   branches:
     include:
       - main
-      - master
 
 pool:
   vmImage: "ubuntu-latest"
@@ -11,6 +10,8 @@ variables:
   - group: mottuspot-variables
   - name: TAG
     value: "$(Build.BuildId)"
+  - name: AZURE_SERVICE_CONNECTION
+    value: "MottuSpotAzureConnection" # set the exact name of your service connection in pipeline variables or Variable Group
 
 stages:
   # =============================================
@@ -66,11 +67,18 @@ stages:
               jdkVersionOption: "1.17"
               gradleOptions: "-Xmx3072m"
 
-          # Usa o script build.sh já presente no repositório
+          # Pre-check: certificar que a service connection foi configurada (CI)
+          - script: |
+              if [ -z "$AZURE_SERVICE_CONNECTION" ]; then
+                echo "##vso[task.logissue type=error]AZURE_SERVICE_CONNECTION is not set. Set the pipeline variable to the name of a Service Connection (Project settings → Service connections)."
+                echo "See: https://aka.ms/yamlauthz"
+                exit 1
+              fi
+            displayName: "Check Azure Service Connection (CI)"
           - task: AzureCLI@2
             displayName: "Build and Push to ACR (script)"
             inputs:
-              azureSubscription: "AzureServiceConnection"
+              azureSubscription: "$(AZURE_SERVICE_CONNECTION)"
               scriptType: "bash"
               scriptLocation: "scriptPath"
               scriptPath: "scripts/build.sh"
@@ -98,11 +106,18 @@ stages:
           runOnce:
             deploy:
               steps:
-                # Usa o script deploy.sh já presente no repositório
+                # Pre-check: certificar que a service connection foi configurada (CD)
+                - script: |
+                    if [ -z "$AZURE_SERVICE_CONNECTION" ]; then
+                      echo "##vso[task.logissue type=error]AZURE_SERVICE_CONNECTION is not set. Set the pipeline variable to the name of a Service Connection (Project settings → Service connections)."
+                      echo "See: https://aka.ms/yamlauthz"
+                      exit 1
+                    fi
+                  displayName: "Check Azure Service Connection (CD)"
                 - task: AzureCLI@2
                   displayName: "Deploy Application (script)"
                   inputs:
-                    azureSubscription: "AzureServiceConnection"
+                    azureSubscription: "$(AZURE_SERVICE_CONNECTION)"
                     scriptType: "bash"
                     scriptLocation: "scriptPath"
                     scriptPath: "scripts/deploy.sh"
