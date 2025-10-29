@@ -1,280 +1,108 @@
 trigger:
   branches:
     include:
-    - main
-    - master
+      - main
+      - master
 
 pool:
-  vmImage: 'ubuntu-latest'
+  vmImage: "ubuntu-latest"
 
 variables:
   - group: mottuspot-variables
-  - name: ACR_NAME
-    value: 'mottuspot'
-  - name: RESOURCE_GROUP
-    value: 'rg-mottu-spot'
-  - name: IMAGE_NAME
-    value: 'mottu-spot'
   - name: TAG
-    value: '$(Build.BuildId)'
-  - name: LOCATION
-    value: 'eastus'
+    value: "$(Build.BuildId)"
 
 stages:
-# =============================================
-# STAGE 1: CI - Build e Testes
-# =============================================
-- stage: CI
-  displayName: 'Continuous Integration'
-  jobs:
-  - job: Build
-    displayName: 'Build and Test'
-    steps:
-    
-    # Checkout do código
-    - checkout: self
-      displayName: 'Checkout Repository'
-    
-    # Setup Java 17
-    - task: JavaToolInstaller@0
-      displayName: 'Setup Java 17'
-      inputs:
-        versionSpec: '17'
-        jdkArchitectureOption: 'x64'
-        jdkSourceOption: 'PreInstalled'
-    
-    # Executar testes
-    - task: Gradle@3
-      displayName: 'Run Tests'
-      inputs:
-        gradleWrapperFile: 'gradlew'
-        tasks: 'test'
-        publishJUnitResults: true
-        testResultsFiles: '**/TEST-*.xml'
-        javaHomeOption: 'JDKVersion'
-        jdkVersionOption: '1.17'
-    
-    # Publicar resultados dos testes
-    - task: PublishTestResults@2
-      displayName: 'Publish Test Results'
-      condition: succeededOrFailed()
-      inputs:
-        testResultsFormat: 'JUnit'
-        testResultsFiles: '**/TEST-*.xml'
-        failTaskOnFailedTests: true
-    
-    # Build com Gradle
-    - task: Gradle@3
-      displayName: 'Gradle Build'
-      inputs:
-        gradleWrapperFile: 'gradlew'
-        tasks: 'clean build'
-        options: '-x test'
-        publishJUnitResults: false
-        javaHomeOption: 'JDKVersion'
-        jdkVersionOption: '1.17'
-        gradleOptions: '-Xmx3072m'
-    
-    # Script Bash - Build e Push para ACR
-    - task: AzureCLI@2
-      displayName: 'Build and Push to ACR (Bash Script)'
-      inputs:
-        azureSubscription: 'AzureServiceConnection'
-        scriptType: 'bash'
-        scriptLocation: 'inlineScript'
-        inlineScript: |
-          set -e
-          
-          echo "🏗️ Iniciando build..."
-          
-          # Criar Resource Group se não existir
-          echo "📦 Criando/Verificando Resource Group..."
-          az group create --name $(RESOURCE_GROUP) --location $(LOCATION) || true
-          
-          # Criar Azure Container Registry se não existir
-          echo "🐳 Criando/Verificando Azure Container Registry..."
-          az acr create \
-            --resource-group $(RESOURCE_GROUP) \
-            --name $(ACR_NAME) \
-            --sku Basic \
-            --admin-enabled true || echo "ACR já existe"
-          
-          # Fazer login no ACR
-          echo "🔑 Fazendo login no ACR..."
-          az acr login --name $(ACR_NAME)
-          
-          # Construir a imagem Docker
-          echo "🔨 Construindo a imagem Docker..."
-          docker build -t $(IMAGE_NAME):$(TAG) .
-          
-          # Tagear a imagem para o ACR
-          echo "🏷️ Tageando a imagem para o ACR..."
-          docker tag $(IMAGE_NAME):$(TAG) $(ACR_NAME).azurecr.io/$(IMAGE_NAME):$(TAG)
-          docker tag $(IMAGE_NAME):$(TAG) $(ACR_NAME).azurecr.io/$(IMAGE_NAME):latest
-          
-          # Enviar a imagem para o ACR
-          echo "📤 Enviando a imagem para o ACR..."
-          docker push $(ACR_NAME).azurecr.io/$(IMAGE_NAME):$(TAG)
-          docker push $(ACR_NAME).azurecr.io/$(IMAGE_NAME):latest
-          
-          echo "✅ Build e Push concluídos com sucesso!"
-    
-    # Publicar artefato dos scripts
-    - task: PublishBuildArtifacts@1
-      displayName: 'Publish Build Artifacts'
-      inputs:
-        PathtoPublish: '$(Build.ArtifactStagingDirectory)'
-        ArtifactName: 'drop'
-        publishLocation: 'Container'
+  # =============================================
+  # STAGE 1: CI - Build e Testes
+  # =============================================
+  - stage: CI
+    displayName: "Continuous Integration"
+    jobs:
+      - job: Build
+        displayName: "Build and Test"
+        steps:
+          # Checkout do código
+          - checkout: self
+            displayName: "Checkout Repository"
 
-# =============================================
-# STAGE 2: CD - Deploy
-# =============================================
-- stage: CD
-  displayName: 'Continuous Deployment'
-  dependsOn: CI
-  condition: succeeded()
-  jobs:
-  - deployment: DeployToAzure
-    displayName: 'Deploy to Azure Container Instance'
-    environment: 'production'
-    strategy:
-      runOnce:
-        deploy:
-          steps:
-          
-          # Script Bash - Deploy Completo
-          - task: AzureCLI@2
-            displayName: 'Deploy Application (Bash Script)'
+          # Setup Java 17
+          - task: JavaToolInstaller@0
+            displayName: "Setup Java 17"
             inputs:
-              azureSubscription: 'AzureServiceConnection'
-              scriptType: 'bash'
-              scriptLocation: 'inlineScript'
-              inlineScript: |
-                set -e
-                
-                # Variáveis
-                RESOURCE_GROUP=$(RESOURCE_GROUP)
-                ACR_NAME=$(ACR_NAME)
-                APP_IMAGE_NAME=$(IMAGE_NAME)
-                DB_IMAGE_NAME=postgres
-                POSTGRES_VERSION=17-alpine
-                DB_TAG=17-alpine
-                APP_TAG=$(TAG)
-                
-                # Configurações do banco
-                DB_NAME=$(POSTGRES_DB)
-                DB_USER=$(POSTGRES_USER)
-                DB_PASSWORD=$(POSTGRES_PASSWORD)
-                
-                # Configurações da aplicação
-                JAVA_OPTS="-Xmx512m -Xms256m -Dspring.profiles.active=prod"
-                
-                echo "🚀 Iniciando deploy..."
-                
-                # Fazer login no ACR
-                echo "🔑 Fazendo login no ACR..."
-                az acr login --name $ACR_NAME
-                
-                # Baixar a imagem do postgres do Docker Hub
-                echo "⬇️ Baixando imagem oficial do PostgreSQL..."
-                docker pull postgres:$POSTGRES_VERSION
-                
-                # Tagear a imagem do postgres para o ACR
-                echo "🏷️ Tageando a imagem do PostgreSQL para o ACR..."
-                docker tag postgres:$POSTGRES_VERSION $ACR_NAME.azurecr.io/$DB_IMAGE_NAME:$DB_TAG
-                
-                # Enviar a imagem do postgres para o ACR
-                echo "📤 Enviando a imagem do PostgreSQL para o ACR..."
-                docker push $ACR_NAME.azurecr.io/$DB_IMAGE_NAME:$DB_TAG
-                
-                # Obter credenciais do ACR
-                echo "🔑 Obtendo credenciais do ACR..."
-                ACR_USERNAME=$(az acr credential show -n $ACR_NAME --query username -o tsv)
-                ACR_PASSWORD=$(az acr credential show -n $ACR_NAME --query "passwords[0].value" -o tsv)
-                
-                # Verificar se container do banco já existe e remover se necessário
-                echo "🔍 Verificando container do banco existente..."
-                if az container show --resource-group $RESOURCE_GROUP --name aci-db-mottu-spot &> /dev/null; then
-                    echo "🗑️ Removendo container do banco antigo..."
-                    az container delete --resource-group $RESOURCE_GROUP --name aci-db-mottu-spot --yes
-                    sleep 10
-                fi
-                
-                # Deploy do PostgreSQL
-                echo "🚀 Criando container do PostgreSQL no ACI..."
-                az container create \
-                  --resource-group $RESOURCE_GROUP \
-                  --name aci-db-mottu-spot \
-                  --image $ACR_NAME.azurecr.io/$DB_IMAGE_NAME:$DB_TAG \
-                  --cpu 1 --memory 2 \
-                  --registry-login-server $ACR_NAME.azurecr.io \
-                  --registry-username $ACR_USERNAME \
-                  --registry-password $ACR_PASSWORD \
-                  --environment-variables \
-                    POSTGRES_PASSWORD=$DB_PASSWORD \
-                    POSTGRES_DB=$DB_NAME \
-                    POSTGRES_USER=$DB_USER \
-                  --ports 5432 \
-                  --os-type Linux \
-                  --dns-name-label aci-db-mottu-spot
-                
-                # Espera o banco iniciar
-                echo "⏳ Aguardando o PostgreSQL iniciar..."
-                sleep 30
-                
-                # Obtém o FQDN correto do banco
-                DB_FQDN=$(az container show --resource-group $RESOURCE_GROUP --name aci-db-mottu-spot --query ipAddress.fqdn -o tsv)
-                echo "✅ Banco de dados disponível em: $DB_FQDN:5432"
-                
-                # Verificar se container da aplicação já existe e remover se necessário
-                echo "🔍 Verificando container da aplicação existente..."
-                if az container show --resource-group $RESOURCE_GROUP --name aci-app-mottu-spot &> /dev/null; then
-                    echo "🗑️ Removendo container da aplicação antigo..."
-                    az container delete --resource-group $RESOURCE_GROUP --name aci-app-mottu-spot --yes
-                    sleep 10
-                fi
-                
-                # Deploy da aplicação
-                echo "🚀 Criando container da aplicação no ACI..."
-                az container create \
-                  --resource-group $RESOURCE_GROUP \
-                  --name aci-app-mottu-spot \
-                  --image $ACR_NAME.azurecr.io/$APP_IMAGE_NAME:$APP_TAG \
-                  --cpu 1 --memory 1.5 \
-                  --registry-login-server $ACR_NAME.azurecr.io \
-                  --registry-username $ACR_USERNAME \
-                  --registry-password $ACR_PASSWORD \
-                  --environment-variables \
-                    SPRING_DATASOURCE_URL="jdbc:postgresql://$DB_FQDN:5432/$DB_NAME" \
-                    SPRING_DATASOURCE_USERNAME=$DB_USER \
-                    SPRING_DATASOURCE_PASSWORD=$DB_PASSWORD \
-                    SPRING_PROFILES_ACTIVE=prod \
-                    JAVA_OPTS="$JAVA_OPTS" \
-                    SPRING_FLYWAY_ENABLED=true \
-                    SPRING_FLYWAY_BASELINE_ON_MIGRATE=true \
-                    SPRING_JPA_HIBERNATE_DDL_AUTO=none \
-                    SPRING_JPA_SHOW_SQL=true \
-                    SERVER_ERROR_INCLUDE_STACKTRACE=always \
-                    SERVER_ERROR_INCLUDE_MESSAGE=always \
-                  --ports 8080 \
-                  --os-type Linux \
-                  --dns-name-label aci-app-mottu-spot \
-                  --restart-policy Always
-                
-                # Aguardar a aplicação iniciar
-                echo "⏳ Aguardando a aplicação iniciar..."
-                sleep 60
-                
-                # Obter informações do deployment
-                APP_FQDN=$(az container show --resource-group $RESOURCE_GROUP --name aci-app-mottu-spot --query ipAddress.fqdn -o tsv)
-                
-                echo "✅ Deploy concluído!"
-                echo "📊 Banco de Dados: $DB_FQDN:5432"
-                echo "🚀 Aplicação: http://$APP_FQDN:8080"
-                echo "🔑 Login: admin / admin123"
-                echo "📋 Para verificar logs: az container logs --resource-group $RESOURCE_GROUP --name aci-app-mottu-spot"
-                
-                # Exportar URLs como outputs da pipeline
-                echo "##vso[task.setvariable variable=APP_URL;isOutput=true]http://$APP_FQDN:8080"
-                echo "##vso[task.setvariable variable=DB_URL;isOutput=true]$DB_FQDN:5432"
+              versionSpec: "17"
+              jdkArchitectureOption: "x64"
+              jdkSourceOption: "PreInstalled"
+
+          # Executar testes
+          - task: Gradle@3
+            displayName: "Run Tests"
+            inputs:
+              gradleWrapperFile: "gradlew"
+              tasks: "test"
+              publishJUnitResults: true
+              testResultsFiles: "**/TEST-*.xml"
+              javaHomeOption: "JDKVersion"
+              jdkVersionOption: "1.17"
+
+          # Publicar resultados dos testes
+          - task: PublishTestResults@2
+            displayName: "Publish Test Results"
+            condition: succeededOrFailed()
+            inputs:
+              testResultsFormat: "JUnit"
+              testResultsFiles: "**/TEST-*.xml"
+              failTaskOnFailedTests: true
+
+          # Build com Gradle
+          - task: Gradle@3
+            displayName: "Gradle Build"
+            inputs:
+              gradleWrapperFile: "gradlew"
+              tasks: "clean build"
+              options: "-x test"
+              publishJUnitResults: false
+              javaHomeOption: "JDKVersion"
+              jdkVersionOption: "1.17"
+              gradleOptions: "-Xmx3072m"
+
+          # Usa o script build.sh já presente no repositório
+          - task: AzureCLI@2
+            displayName: "Build and Push to ACR (script)"
+            inputs:
+              azureSubscription: "AzureServiceConnection"
+              scriptType: "bash"
+              scriptLocation: "scriptPath"
+              scriptPath: "scripts/build.sh"
+
+          # Publicar artefato dos scripts
+          - task: PublishBuildArtifacts@1
+            displayName: "Publish Build Artifacts"
+            inputs:
+              PathtoPublish: "$(Build.ArtifactStagingDirectory)"
+              ArtifactName: "drop"
+              publishLocation: "Container"
+
+  # =============================================
+  # STAGE 2: CD - Deploy
+  # =============================================
+  - stage: CD
+    displayName: "Continuous Deployment"
+    dependsOn: CI
+    condition: succeeded()
+    jobs:
+      - deployment: DeployToAzure
+        displayName: "Deploy to Azure Container Instance"
+        environment: "production"
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                # Usa o script deploy.sh já presente no repositório
+                - task: AzureCLI@2
+                  displayName: "Deploy Application (script)"
+                  inputs:
+                    azureSubscription: "AzureServiceConnection"
+                    scriptType: "bash"
+                    scriptLocation: "scriptPath"
+                    scriptPath: "scripts/deploy.sh"
