@@ -86,6 +86,10 @@ stages:
           runOnce:
             deploy:
               steps:
+                # Checkout para disponibilizar os scripts no deployment job
+                - checkout: self
+                  displayName: "Checkout Repository (CD)"
+
                 # Pre-check: certificar que a service connection foi configurada (CD)
                 - script: |
                     if [ -z "$AZURE_SERVICE_CONNECTION" ]; then
