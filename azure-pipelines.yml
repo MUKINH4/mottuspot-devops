@@ -88,7 +88,7 @@ stages:
   # =============================================
   - stage: Deploy
     displayName: "Continuous Deployment"
-    dependsOn: CI
+    dependsOn: Build
     condition: succeeded()
     jobs:
       - deployment: DeployToAzure
