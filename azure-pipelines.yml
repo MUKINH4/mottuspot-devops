@@ -47,6 +47,14 @@ stages:
               jdkVersionOption: "1.17"
               gradleOptions: "-Xmx3072m"
 
+          # Pre-check: certificar que a service connection foi configurada (CI)
+          - script: |
+              if [ -z "$AZURE_SERVICE_CONNECTION" ]; then
+                echo "##vso[task.logissue type=error]AZURE_SERVICE_CONNECTION is not set. Set the pipeline variable to the name of a Service Connection (Project settings → Service connections)."
+                echo "See: https://aka.ms/yamlauthz"
+                exit 1
+              fi
+            displayName: "Check Azure Service Connection (CI)"
           - task: AzureCLI@2
             displayName: "Build and Push to ACR (script)"
             inputs:
