@@ -2,8 +2,7 @@
 
 ACR_NAME="mottuspot"
 RG_NAME="rg-mottu-spot"
-IMAGE_NAME="mottu-spot"
-TAG="latest"
+IMAGE_NAME="mottu-spot:latest"
 
 # Criar Resource Group
 echo "Criando Resource Group..."
@@ -17,16 +16,8 @@ az acr create --resource-group $RG_NAME --name $ACR_NAME --sku Basic --admin-ena
 echo "Fazendo login no ACR..."
 az acr login --name $ACR_NAME
 
-# Construir a imagem Docker
-echo "Construindo a imagem Docker..."
-docker build -t $IMAGE_NAME:$TAG .
+docker pull postgres:17-alpine
+docker tag postgres:17-alpine $ACR_NAME.azurecr.io/postgres:17-alpine
+docker push $ACR_NAME.azurecr.io/postgres:17-alpine
 
-# Tagear a imagem para o ACR
-echo "Tageando a imagem para o ACR..."
-docker tag $IMAGE_NAME:$TAG $ACR_NAME.azurecr.io/$IMAGE_NAME:$TAG
 
-# Enviar a imagem para o ACR
-echo "Enviando a imagem para o ACR..."
-docker push $ACR_NAME.azurecr.io/$IMAGE_NAME:$TAG
-
-echo "✅ Build e Push concluídos com sucesso!"

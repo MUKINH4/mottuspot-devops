@@ -2,7 +2,6 @@ trigger:
   branches:
     include:
       - main
-      - master
 
 pool:
   vmImage: "ubuntu-latest"
@@ -11,6 +10,8 @@ variables:
   - group: mottuspot-variables
   - name: TAG
     value: "$(Build.BuildId)"
+  - name: AZURE_SERVICE_CONNECTION
+    value: "MottuSpotAzureConnection" # set the exact name of your service connection in pipeline variables or Variable Group
 
 stages:
   # =============================================
@@ -34,43 +35,22 @@ stages:
               jdkArchitectureOption: "x64"
               jdkSourceOption: "PreInstalled"
 
-          # Executar testes
+          # Build com Gradle
           - task: Gradle@3
-            displayName: "Run Tests"
+            displayName: "Gradle Build and Test"
             inputs:
               gradleWrapperFile: "gradlew"
-              tasks: "test"
+              tasks: "clean build test"
               publishJUnitResults: true
               testResultsFiles: "**/TEST-*.xml"
               javaHomeOption: "JDKVersion"
               jdkVersionOption: "1.17"
-
-          # Publicar resultados dos testes
-          - task: PublishTestResults@2
-            displayName: "Publish Test Results"
-            condition: succeededOrFailed()
-            inputs:
-              testResultsFormat: "JUnit"
-              testResultsFiles: "**/TEST-*.xml"
-              failTaskOnFailedTests: true
-
-          # Build com Gradle
-          - task: Gradle@3
-            displayName: "Gradle Build"
-            inputs:
-              gradleWrapperFile: "gradlew"
-              tasks: "clean build"
-              options: "-x test"
-              publishJUnitResults: false
-              javaHomeOption: "JDKVersion"
-              jdkVersionOption: "1.17"
               gradleOptions: "-Xmx3072m"
 
-          # Usa o script build.sh já presente no repositório
           - task: AzureCLI@2
             displayName: "Build and Push to ACR (script)"
             inputs:
-              azureSubscription: "AzureServiceConnection"
+              azureSubscription: "$(AZURE_SERVICE_CONNECTION)"
               scriptType: "bash"
               scriptLocation: "scriptPath"
               scriptPath: "scripts/build.sh"
@@ -98,11 +78,13 @@ stages:
           runOnce:
             deploy:
               steps:
-                # Usa o script deploy.sh já presente no repositório
+                # Checkout para disponibilizar os scripts no deployment job
+                - checkout: self
+                  displayName: "Checkout Repository (CD)"            
                 - task: AzureCLI@2
                   displayName: "Deploy Application (script)"
                   inputs:
-                    azureSubscription: "AzureServiceConnection"
+                    azureSubscription: "$(AZURE_SERVICE_CONNECTION)"
                     scriptType: "bash"
                     scriptLocation: "scriptPath"
                     scriptPath: "scripts/deploy.sh"

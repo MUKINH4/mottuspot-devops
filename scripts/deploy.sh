@@ -17,48 +17,10 @@ DB_PASSWORD=postgres123
 # Configurações da aplicação
 JAVA_OPTS="-Xmx512m -Xms256m -Dspring.profiles.active=prod"
 
-# Fazer login no ACR
-echo "🔑 Fazendo login no ACR..."
-az acr login --name $ACR_NAME
-
-# Baixar a imagem do postgres do Docker Hub
-echo "⬇️ Baixando imagem oficial do PostgreSQL..."
-docker pull postgres:$POSTGRES_VERSION
-
-# Tagear a imagem do postgres para o ACR
-echo "🏷️ Tageando a imagem do PostgreSQL para o ACR..."
-docker tag postgres:$POSTGRES_VERSION $ACR_NAME.azurecr.io/$DB_IMAGE_NAME:$DB_TAG
-
-# Enviar a imagem do postgres para o ACR
-echo "📤 Enviando a imagem do PostgreSQL para o ACR..."
-docker push $ACR_NAME.azurecr.io/$DB_IMAGE_NAME:$DB_TAG
-
 # Obter credenciais do ACR
 echo "🔑 Obtendo credenciais do ACR..."
 ACR_USERNAME=$(az acr credential show -n $ACR_NAME --query username -o tsv)
 ACR_PASSWORD=$(az acr credential show -n $ACR_NAME --query "passwords[0].value" -o tsv)
-
-# Deploy do PostgreSQL
-echo "🚀 Criando container do PostgreSQL no ACI..."
-az container create \
-  --resource-group $RESOURCE_GROUP \
-  --name aci-db-mottu-spot \
-  --image $ACR_NAME.azurecr.io/$DB_IMAGE_NAME:$DB_TAG \
-  --cpu 1 --memory 2 \
-  --registry-login-server $ACR_NAME.azurecr.io \
-  --registry-username $ACR_USERNAME \
-  --registry-password $ACR_PASSWORD \
-  --environment-variables \
-    POSTGRES_PASSWORD=$DB_PASSWORD \
-    POSTGRES_DB=$DB_NAME \
-    POSTGRES_USER=$DB_USER \
-  --ports 5432 \
-  --os-type Linux \
-  --dns-name-label aci-db-mottu-spot
-
-# Espera o banco iniciar
-echo "⏳ Aguardando o PostgreSQL iniciar..."
-sleep 30
 
 # Obtém o FQDN correto do banco
 DB_FQDN=$(az container show --resource-group $RESOURCE_GROUP --name aci-db-mottu-spot --query ipAddress.fqdn -o tsv)
@@ -103,4 +65,3 @@ echo "📊 Banco de Dados: $DB_FQDN:5432"
 echo "🚀 Aplicação: http://$APP_FQDN:8080"
 echo "🔑 Login: admin / admin123"
 echo "📋 Para verificar logs: az container logs --resource-group $RESOURCE_GROUP --name aci-app-mottu-spot"
-echo "🔍 Health check: http://$APP_FQDN:8080/actuator/health"
