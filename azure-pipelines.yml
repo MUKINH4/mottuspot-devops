@@ -27,6 +27,8 @@ stages:
           vmImage: ubuntu-latest
 
         steps:
+          - checkout: self
+            displayName: "Checkout Repository"
           - task: Cache@2
             inputs:
               key: 'gradle | "$(Agent.OS)" | **/build.gradle'
