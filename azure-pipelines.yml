@@ -8,12 +8,14 @@ pool:
 
 variables:
   - group: mottuspot-variables
+  - name: GRADLE_USER_HOME
+    value: $(Pipeline.Workspace)/.gradle
   - name: TAG
     value: "$(Build.BuildId)"
   - name: AZURE_SERVICE_CONNECTION
     value: "MottuSpotAzureConnection"
   - name: RESOURCE_GROUP
-    value: 'rg-mottu-spot'
+    value: "rg-mottu-spot"
 
 stages:
   # =============================================
@@ -29,11 +31,11 @@ stages:
         steps:
           - checkout: self
             displayName: "Checkout Repository"
+
           - task: Cache@2
             inputs:
-              key: 'gradle | "$(Agent.OS)" | **/build.gradle'
-              restoreKeys:
-                | # The fallback keys if the primary key fails (Optional)
+              key: 'gradle | "$(Agent.OS)" | **/*.gradle*'
+              restoreKeys: |
                 gradle | "$(Agent.OS)"
                 gradle
               path: $(GRADLE_USER_HOME)
@@ -43,17 +45,13 @@ stages:
             inputs:
               gradleWrapperFile: "gradlew"
               tasks: "build"
-              options: '--build-cache -D"spring.profiles.active=test"'
+              options: "--build-cache -Dspring.profiles.active=test"
               publishJUnitResults: true
               testResultsFiles: "**/TEST-*.xml"
               javaHomeOption: "JDKVersion"
               sonarQubeRunAnalysis: false
-              checkStyleRunAnalysis: false
-              spotBugsAnalysis: false
 
-          - script: |
-              # stop the Gradle daemon to ensure no files are left open (impacting the save cache operation later)
-              ./gradlew --stop
+          - script: ./gradlew --stop
             displayName: Gradlew stop
 
           - task: CopyFiles@2
@@ -89,67 +87,84 @@ stages:
   # STAGE 2: CD - Deploy
   # =============================================
   - stage: Deploy
-    displayName: "Continuous Deployment"
+    displayName: "CD - Deploy to Azure Container Instances"
     dependsOn: Build
     condition: succeeded()
     jobs:
-      - deployment: DeployToAzure
-        displayName: "Deploy to Azure Container Instance"
-        environment: "production"
-        strategy:
-          runOnce:
-            deploy:
-              steps:
-                # Checkout para disponibilizar os scripts no deployment job
-                - checkout: self
-                  displayName: "Checkout Repository (CD)"            
-                - task: AzureCLI@2
-                  displayName: "Deploy Application (script)"
-                  inputs:
-                    azureSubscription: "$(AZURE_SERVICE_CONNECTION)"
-                    scriptType: "bash"
-                    scriptLocation: "inlineScript"
-                    inlineScript: |
-                      JAVA_OPTS="-Xmx512m -Xms256m -Dspring.profiles.active=prod"
-                      DB_FQDN=$(az container show --resource-group $(RESOURCE_GROUP) --name aci-db-mottu-spot --query ipAddress.fqdn -o tsv)
-                      ACR_USERNAME=$(az acr credential show -n $(ACR_NAME) --query username -o tsv)
-                      ACR_PASSWORD=$(az acr credential show -n $(ACR_NAME) --query "passwords[0].value" -o tsv)
-                      # Deploy da aplicação
-                      echo "🚀 Criando container da aplicação no ACI..."
-                      az container create \
-                        --resource-group $(RESOURCE_GROUP) \
-                        --name aci-app-mottu-spot \
-                        --image $(ACR_NAME).azurecr.io/$(IMAGE_NAME):$(APP_TAG) \
-                        --cpu 1 --memory 1.5 \
-                        --registry-login-server $(ACR_NAME).azurecr.io \
-                        --registry-username $ACR_USERNAME \
-                        --registry-password $ACR_PASSWORD \
-                        --environment-variables \
-                          SPRING_DATASOURCE_URL="jdbc:postgresql://$DB_FQDN:5432/$(POSTGRES_DB)" \
-                          SPRING_DATASOURCE_USERNAME=$(POSTGRES_USER) \
-                          SPRING_DATASOURCE_PASSWORD=$(POSTGRES_PASSWORD) \
-                          SPRING_PROFILES_ACTIVE=prod \
-                          JAVA_OPTS="$JAVA_OPTS" \
-                          SPRING_FLYWAY_ENABLED=true \
-                          SPRING_FLYWAY_BASELINE_ON_MIGRATE=true \
-                          SPRING_JPA_HIBERNATE_DDL_AUTO=none \
-                          SPRING_JPA_SHOW_SQL=true \
-                          SERVER_ERROR_INCLUDE_STACKTRACE=always \
-                          SERVER_ERROR_INCLUDE_MESSAGE=always \
-                        --ports 8080 \
-                        --os-type Linux \
-                        --dns-name-label aci-app-mottu-spot \
-                        --restart-policy Always
+      - job: Deploy
+        displayName: "Deploy App to ACI"
+        pool:
+          vmImage: "ubuntu-latest"
+        steps:
+          - checkout: none
 
-                      # Aguardar a aplicação iniciar
-                      echo "⏳ Aguardando a aplicação iniciar..."
-                      sleep 60
+          - task: AzureCLI@2
+            displayName: "Deploy Application to ACI"
+            inputs:
+              azureSubscription: "$(AZURE_SERVICE_CONNECTION)"
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                set -euo pipefail
 
-                      # Verificar se a aplicação está rodando
-                      APP_FQDN=$(az container show --resource-group $(RESOURCE_GROUP) --name aci-app-mottu-spot --query ipAddress.fqdn -o tsv)
+                echo "Using resource group: $(RESOURCE_GROUP)"
 
-                      echo "✅ Deploy concluído!"
-                      echo "📊 Banco de Dados: $DB_FQDN:5432"
-                      echo "🚀 Aplicação: http://$APP_FQDN:8080"
-                      echo "🔑 Login: admin / admin123"
-                      echo "📋 Para verificar logs: az container logs --resource-group $(RESOURCE_GROUP) --name aci-app-mottu-spot"
+                # Obter credenciais do ACR
+                ACR_USERNAME=$(az acr credential show -n $(ACR_NAME) --query username -o tsv)
+                ACR_PASSWORD=$(az acr credential show -n $(ACR_NAME) --query "passwords[0].value" -o tsv)
+
+                # Obter FQDN do banco de dados
+                DB_FQDN=$(az container show --resource-group $(RESOURCE_GROUP) --name aci-db-mottu-spot --query ipAddress.fqdn -o tsv)
+
+                # Nome do container e DNS
+                APP_CONTAINER_NAME="aci-app-mottu-spot"
+                APP_DNS_LABEL="aci-app-mottu-spot"
+
+                # Excluir container anterior (para liberar DNS)
+                echo "Cleaning up previous container if it exists..."
+                az container delete --resource-group "$(RESOURCE_GROUP)" --name "$APP_CONTAINER_NAME" --yes || true
+                sleep 10
+
+                # Criar container da aplicação
+                APP_IMAGE="$(ACR_NAME).azurecr.io/$(IMAGE_NAME):$(APP_TAG)"
+                echo "Deploying application container: $APP_CONTAINER_NAME"
+                echo "Image: $APP_IMAGE"
+
+                az container create \
+                  --resource-group "$(RESOURCE_GROUP)" \
+                  --name "$APP_CONTAINER_NAME" \
+                  --image "$APP_IMAGE" \
+                  --cpu 1 --memory 1.5 \
+                  --registry-login-server "$(ACR_NAME).azurecr.io" \
+                  --registry-username "$ACR_USERNAME" \
+                  --registry-password "$ACR_PASSWORD" \
+                  --environment-variables \
+                    SPRING_DATASOURCE_URL="jdbc:postgresql://$DB_FQDN:5432/$(POSTGRES_DB)" \
+                    SPRING_DATASOURCE_USERNAME="$(POSTGRES_USER)" \
+                    SPRING_DATASOURCE_PASSWORD="$(POSTGRES_PASSWORD)" \
+                    SPRING_PROFILES_ACTIVE=prod \
+                    JAVA_OPTS="-Xmx512m -Xms256m -Dspring.profiles.active=prod" \
+                    SPRING_FLYWAY_ENABLED=true \
+                    SPRING_FLYWAY_BASELINE_ON_MIGRATE=true \
+                    SPRING_JPA_HIBERNATE_DDL_AUTO=none \
+                    SPRING_JPA_SHOW_SQL=true \
+                    SERVER_ERROR_INCLUDE_STACKTRACE=always \
+                    SERVER_ERROR_INCLUDE_MESSAGE=always \
+                  --ports 8080 \
+                  --os-type Linux \
+                  --dns-name-label "$APP_DNS_LABEL" \
+                  --restart-policy Always
+
+                # Aguardar a aplicação iniciar
+                echo "⏳ Aguardando a aplicação iniciar..."
+                sleep 60
+
+                # Verificar se a aplicação está rodando
+                APP_FQDN=$(az container show --resource-group $(RESOURCE_GROUP) --name "$APP_CONTAINER_NAME" --query ipAddress.fqdn -o tsv)
+                APP_URL="http://$APP_FQDN:8080"
+
+                echo "✅ Deploy concluído!"
+                echo "📊 Banco de Dados: $DB_FQDN:5432"
+                echo "🚀 Aplicação: $APP_URL"
+                echo "🔑 Login: admin / admin123"
+                echo "📋 Para verificar logs: az container logs --resource-group $(RESOURCE_GROUP) --name $APP_CONTAINER_NAME"
