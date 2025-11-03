@@ -78,7 +78,7 @@ stages:
           - task: Docker@2
             inputs:
               command: buildAndPush
-              repository: guacamole
+              repository: $(IMAGE_NAME)
               tags: |
                 latest
                 $(Build.BuildId)
@@ -113,6 +113,16 @@ stages:
                 ACR_USERNAME=$(az acr credential show -n $(ACR_NAME) --query username -o tsv)
                 ACR_PASSWORD=$(az acr credential show -n $(ACR_NAME) --query "passwords[0].value" -o tsv)
 
+                # Verificar se a imagem existe no ACR
+                echo "Verificando imagens disponíveis no ACR..."
+                az acr repository list --name $(ACR_NAME) --output table
+
+                echo "Verificando tags da imagem $(IMAGE_NAME)..."
+                az acr repository show-tags --name $(ACR_NAME) --repository $(IMAGE_NAME) --output table || {
+                  echo "ERROR: Repository $(IMAGE_NAME) not found in ACR"
+                  exit 1
+                }
+
                 # Obter FQDN do banco de dados
                 DB_FQDN=$(az container show --resource-group $(RESOURCE_GROUP) --name aci-db-mottu-spot --query ipAddress.fqdn -o tsv)
 
@@ -125,8 +135,9 @@ stages:
                 az container delete --resource-group "$(RESOURCE_GROUP)" --name "$APP_CONTAINER_NAME" --yes || true
                 sleep 10
 
-                # Criar container da aplicação
-                APP_IMAGE="$(ACR_NAME).azurecr.io/$(IMAGE_NAME):$(APP_TAG)"
+                # Usar a tag do BuildId para garantir que a imagem existe
+                IMAGE_TAG="$(Build.BuildId)"
+                APP_IMAGE="$(ACR_NAME).azurecr.io/$(IMAGE_NAME):$IMAGE_TAG"
                 echo "Deploying application container: $APP_CONTAINER_NAME"
                 echo "Image: $APP_IMAGE"
 

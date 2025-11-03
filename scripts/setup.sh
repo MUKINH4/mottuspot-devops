@@ -2,9 +2,12 @@
 
 ACR_NAME="mottuspot"
 RG_NAME="rg-mottu-spot"
-IMAGE_NAME="mottu-spot:latest"
+IMAGE_NAME="mottu-spot"
+DB_NAME="mottuspot"
 DB_USER="postgres"
 DB_PASSWORD="postgres123"
+LOCATION="eastus"
+
 # Criar Resource Group
 echo "Criando Resource Group..."
 az group create --name $RG_NAME --location eastus
@@ -25,7 +28,7 @@ ACR_USERNAME=$(az acr credential show -n "$ACR_NAME" --query username -o tsv)
 ACR_PASSWORD=$(az acr credential show -n "$ACR_NAME" --query "passwords[0].value" -o tsv)
 
 # Nomes do container e DNS do banco
-DB_CONTAINER_NAME="aci-db--mottu-spot"
+DB_CONTAINER_NAME="aci-db-mottu-spot"
 DB_DNS_LABEL="aci-db-mottu-spot"
 
 # Excluir container anterior se existir
