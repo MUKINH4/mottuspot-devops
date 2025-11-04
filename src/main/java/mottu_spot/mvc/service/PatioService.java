@@ -38,6 +38,25 @@ public class PatioService {
     }
 
     public Patio editarPatio(Long id, Patio patio) {
-        return patioRepository.save(patio);
+        Patio patioExistente = encontrarPatio(id);
+        
+        // Atualizar apenas os campos editáveis, preservando as motos
+        if (patio.getNome() != null) {
+            patioExistente.setNome(patio.getNome());
+        }
+        if (patio.getLotacao() > 0) {
+            patioExistente.setLotacao(patio.getLotacao());
+        }
+        if (patio.getDataAdicao() != null) {
+            patioExistente.setDataAdicao(patio.getDataAdicao());
+        }
+        
+        // Só atualiza o endereço se for fornecido
+        if (patio.getEndereco() != null) {
+            patioExistente.setEndereco(patio.getEndereco());
+        }
+        
+        // As motos são preservadas automaticamente (não são tocadas)
+        return patioRepository.save(patioExistente);
     }
 }

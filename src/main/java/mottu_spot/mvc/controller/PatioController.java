@@ -26,6 +26,7 @@ public class PatioController {
 
     private final PatioService patioService;
     private final MotoService motoService;
+    
     public PatioController(PatioService patioService, MotoService motoService) {
         this.patioService = patioService;
         this.motoService = motoService;
@@ -68,16 +69,39 @@ public class PatioController {
     }
 
     @PostMapping("/patios")
-    public String salvarPatio(@Valid @ModelAttribute Patio patio, BindingResult result, RedirectAttributes redirect) {
+    public String salvarPatio(@Valid @ModelAttribute("patio") Patio patio, BindingResult result, RedirectAttributes redirect, Model model) {
 
         if (result.hasErrors()) {
+            // Log dos erros para debug
+            result.getAllErrors().forEach(error -> {
+                System.out.println("Erro de validação: " + error.getDefaultMessage());
+            });
+            
+            // Garantir que o endereço não seja nulo
+            if (patio.getEndereco() == null) {
+                patio.setEndereco(new Endereco());
+            }
+            
+            model.addAttribute("patio", patio);
             return "adicionarPatio";
         }
 
-        patioService.salvarPatio(patio);
-
-        redirect.addFlashAttribute("message", "Pátio criado com sucesso");
-        return "redirect:/";
+        try {
+            // Garantir que o endereço existe
+            if (patio.getEndereco() == null) {
+                patio.setEndereco(new Endereco());
+            }
+            
+            patioService.salvarPatio(patio);
+            redirect.addFlashAttribute("message", "Pátio criado com sucesso");
+            return "redirect:/";
+        } catch (Exception e) {
+            System.out.println("Erro ao salvar pátio: " + e.getMessage());
+            e.printStackTrace();
+            model.addAttribute("error", "Erro ao salvar pátio: " + e.getMessage());
+            model.addAttribute("patio", patio);
+            return "adicionarPatio";
+        }
     }
 
     @GetMapping("/patios/edit/{id}")

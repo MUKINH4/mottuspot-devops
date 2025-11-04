@@ -38,6 +38,7 @@ public class Moto {
     @JoinColumn(name = "patio_id")
     private Patio patio;
 
-    @OneToOne
+    @OneToOne(cascade = CascadeType.ALL, orphanRemoval = true)
+    @JoinColumn(name = "dispositivo_id")
     private Dispositivo dispositivo;
 }

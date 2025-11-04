@@ -1,5 +1,6 @@
 package mottu_spot.mvc.service;
 
+import mottu_spot.mvc.model.Dispositivo;
 import mottu_spot.mvc.model.Moto;
 import mottu_spot.mvc.repository.MotoRepository;
 import org.springframework.stereotype.Service;
@@ -24,6 +25,14 @@ public class MotoService {
     }
 
     public Moto criarMoto(Moto moto){
+        // Criar dispositivo associado
+        Dispositivo dispositivo = Dispositivo.builder()
+                .ativo(false)
+                .moto(moto)
+                .build();
+        
+        moto.setDispositivo(dispositivo);
+        
         return motoRepository.save(moto);
     }
 
@@ -38,6 +47,36 @@ public class MotoService {
 
     public void deletarMoto(Long id) {
         motoRepository.deleteById(id);
+    }
+
+    public Moto editarMoto(Long id, Moto moto) {
+        Moto motoExistente = encontrarMoto(id);
+        
+        // Atualizar apenas os campos editáveis, preservando os dispositivos
+        if (moto.getDescricao() != null) {
+            motoExistente.setDescricao(moto.getDescricao());
+        }
+        if (moto.getPlaca() != null) {
+            motoExistente.setPlaca(moto.getPlaca());
+        }
+        if (moto.getDataAdicao() != null) {
+            motoExistente.setDataAdicao(moto.getDataAdicao());
+        }
+        if (moto.getStatus() != null) {
+            motoExistente.setStatus(moto.getStatus());
+        }
+        
+        // Se o pátio foi alterado, atualize
+        if (moto.getPatio() != null) {
+            motoExistente.setPatio(moto.getPatio());
+        }
+        
+        // Só atualiza o dispositivo se for fornecido explicitamente
+        if (moto.getDispositivo() != null) {
+            motoExistente.setDispositivo(moto.getDispositivo());
+        }
+        
+        return motoRepository.save(motoExistente);
     }
 
 }

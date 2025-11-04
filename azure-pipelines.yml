@@ -164,7 +164,7 @@ stages:
                   --ports 8080 \
                   --os-type Linux \
                   --dns-name-label "$APP_DNS_LABEL" \
-                  --restart-policy never
+                  --restart-policy always
 
                 # Aguardar a aplicação iniciar
                 echo "⏳ Aguardando a aplicação iniciar..."
