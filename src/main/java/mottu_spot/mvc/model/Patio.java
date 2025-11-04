@@ -38,7 +38,7 @@ public class Patio {
     @Builder.Default
     private LocalDateTime dataAdicao =  LocalDateTime.now();
 
-    @OneToMany(mappedBy = "patio", cascade = CascadeType.REMOVE, orphanRemoval = true, fetch = FetchType.EAGER)
+    @OneToMany(mappedBy = "patio", cascade = CascadeType.REMOVE, orphanRemoval = true, fetch = FetchType.LAZY)
     private List<Moto> motos;
 
 }
