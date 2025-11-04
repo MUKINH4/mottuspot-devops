@@ -3,7 +3,7 @@
 ACR_NAME="mottuspot"
 RG_NAME="rg-mottu-spot"
 IMAGE_NAME="mottu-spot"
-DB_NAME="mottuspot"
+DB_NAME="mottuspot_db"
 DB_USER="postgres"
 DB_PASSWORD="postgres123"
 LOCATION="eastus"
