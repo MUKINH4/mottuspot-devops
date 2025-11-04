@@ -45,7 +45,7 @@ stages:
             inputs:
               gradleWrapperFile: "gradlew"
               tasks: "build"
-              options: "--build-cache -Dspring.profiles.active=test"
+              options: "--build-cache"
               publishJUnitResults: true
               testResultsFiles: "**/TEST-*.xml"
               javaHomeOption: "JDKVersion"
