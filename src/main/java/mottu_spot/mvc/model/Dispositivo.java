@@ -21,7 +21,7 @@ public class Dispositivo {
     @Builder.Default
     private boolean ativo = false;
 
-    @OneToOne
-    @JoinColumn(name = "moto_id")
-    private Moto moto;
+    // @OneToOne
+    // @JoinColumn(name = "moto_id")
+    // private Moto moto;
 }

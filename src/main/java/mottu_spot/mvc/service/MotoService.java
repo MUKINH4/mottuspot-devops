@@ -25,14 +25,14 @@ public class MotoService {
     }
 
     public Moto criarMoto(Moto moto){
-        // Criar dispositivo associado
+        // Criar dispositivo associado (sem referência à moto)
         Dispositivo dispositivo = Dispositivo.builder()
                 .ativo(false)
-                .moto(moto)
                 .build();
         
         moto.setDispositivo(dispositivo);
         
+        // O cascade salvará o dispositivo automaticamente
         return motoRepository.save(moto);
     }
 

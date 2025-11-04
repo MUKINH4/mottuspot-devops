@@ -33,13 +33,8 @@ public class DispositivoService {
     public Dispositivo editarDispositivo(UUID id, Dispositivo dispositivo) {
         Dispositivo dispositivoExistente = encontrarDispositivo(id);
         
-        // Atualizar apenas os campos editáveis
+        // Atualizar apenas o campo ativo
         dispositivoExistente.setAtivo(dispositivo.isAtivo());
-        
-        // Só atualiza a moto se for fornecida
-        if (dispositivo.getMoto() != null) {
-            dispositivoExistente.setMoto(dispositivo.getMoto());
-        }
         
         return dispositivoRepository.save(dispositivoExistente);
     }
