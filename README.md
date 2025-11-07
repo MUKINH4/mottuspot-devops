@@ -7,7 +7,7 @@
 
 ## 📋 Descrição da Solução
 
-O **Mottu Spot** é uma aplicação web desenvolvida em Spring Boot para gerenciamento eficiente de pátios de motocicletas. O sistema permite o cadastro, visualização, edição e exclusão de pátios e suas respectivas motocicletas, oferecendo uma interface intuitiva para controle operacional de frotas.
+O **Mottu Spot** é uma aplicação web desenvolvida em Spring Boot para gerenciamento eficiente de pátios de motocicletas. O sistema permite o cadastro, visualização, edição e exclusão de pátios e suas respectivas motocicletas, oferecendo uma interface intuitiva para controle operacional de frotas
 
 ### Principais Funcionalidades:
 - ✅ **Gestão de Pátios**: CRUD completo para pátios com informações de endereço
